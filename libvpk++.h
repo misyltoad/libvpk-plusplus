@@ -82,7 +82,7 @@ namespace libvpk {
 
     struct VPKHeader2 : public VPKHeader1 {
       VPKHeader2() = default;
-      VPKHeader2(const VPKHeader1& header) { VPKHeader1::VPKHeader1(header); }
+      VPKHeader2(const VPKHeader1& header) : VPKHeader1(header) { }
 
       int32_t fileDataSectionSize   = 0;
       int32_t archiveMD5SectionSize = 0;
