@@ -18,7 +18,7 @@ namespace libvpk {
 
   namespace helpers {
 
-    std::string_view removeExtension(std::string_view string, std::string_view ending) {
+    static inline std::string_view removeExtension(std::string_view string, std::string_view ending) {
       const size_t position = string.find(ending);
 
       return position != std::string_view::npos
@@ -26,7 +26,7 @@ namespace libvpk {
         : string;
     }
 
-    std::string_view normalizePath(std::string_view path) {
+    static inline std::string_view normalizePath(std::string_view path) {
       // Remove .vpk and _dir
       path = helpers::removeExtension(path, ".vpk");
       path = helpers::removeExtension(path, "_dir");
@@ -35,24 +35,24 @@ namespace libvpk {
     }
 
     template <typename T>
-    T read(std::ifstream& stream) {
+    static inline T read(std::ifstream& stream) {
       T value;
       stream.read(reinterpret_cast<char*>(&value), sizeof(T));
       return value;
     }
 
     template <>
-    std::string read<std::string>(std::ifstream& stream) {
+    static inline std::string read<std::string>(std::ifstream& stream) {
       std::string value;
       std::getline(stream, value, '\0');
       return value;
     }
 
-    std::string directoryPath(std::string_view basePath) {
+    static inline std::string directoryPath(std::string_view basePath) {
       return std::string(basePath) + "_dir.vpk";
     }
 
-    std::string archivePath(std::string_view basePath, uint16_t archiveIndex) {
+    static inline std::string archivePath(std::string_view basePath, uint16_t archiveIndex) {
       std::stringstream archivePath;
       archivePath << basePath << "_" << std::setw(3) << std::setfill('0') << archiveIndex << ".vpk";
       return archivePath.str();
@@ -98,11 +98,11 @@ namespace libvpk {
 
   public:
 
-    std::string_view directoryPath() {
+    inline std::string_view directoryPath() {
       return m_directoryPath;
     }
 
-    std::string_view archivePath() {
+    inline std::string_view archivePath() {
       return m_archivePath;
     }
 
@@ -134,15 +134,15 @@ namespace libvpk {
     VPKFile(const VPKFile&) = default;
     VPKFile& operator=(const VPKFile&) = default;
 
-    const VPKArchiveRef archive() const {
+    inline const VPKArchiveRef archive() const {
       return m_archive;
     }
 
-    int32_t crc() const {
+    inline int32_t crc() const {
       return m_desc.crc;
     }
 
-    int32_t length() const {
+    inline int32_t length() const {
       return m_desc.preloadLength + m_desc.fileLength;
     }
 
@@ -179,7 +179,7 @@ namespace libvpk {
     VPKFileStream(const VPKFile& file)
       : VPKFileStream(file.m_archive, file.m_desc) { }
 
-    int32_t read(char* dst, int32_t count) {
+    inline int32_t read(char* dst, int32_t count) {
       int32_t preloadCount = std::min(pos + count, m_preloadLength) - pos;
       int32_t fileCount    = std::min(pos + count - m_preloadLength, m_fileLength) - pos;
 
@@ -198,7 +198,7 @@ namespace libvpk {
       return count;
     }
 
-    int32_t seek(int32_t pos) {
+    inline int32_t seek(int32_t pos) {
       int32_t oldPreloadPos = preloadPos();
       int32_t oldFilePos    = filePos();
 
@@ -226,11 +226,11 @@ namespace libvpk {
 
   private:
 
-    int32_t preloadPos() {
+    inline int32_t preloadPos() {
       return std::min(pos, m_preloadLength);
     }
 
-    int32_t filePos() {
+    inline int32_t filePos() {
       return std::clamp(pos - m_preloadLength, 0, m_fileLength);
     }
 
@@ -276,11 +276,11 @@ namespace libvpk {
       parseDirectory(basePath, std::move(directoryStream));
     }
 
-    meta::VPKHeader header() {
+    inline meta::VPKHeader header() {
       return m_header;
     }
 
-    std::optional<VPKFile> file(const std::string& path) {
+    inline std::optional<VPKFile> file(const std::string& path) {
       auto iter = m_files.find(path);
       if (iter == m_files.end())
         return std::nullopt;
@@ -288,13 +288,13 @@ namespace libvpk {
       return iter->second;
     }
 
-    const VPKFileMap& files() {
+    inline const VPKFileMap& files() {
       return m_files;
     }
 
   private:
 
-    void parseDirectory(std::string_view basePath, std::ifstream&& stream) {
+    inline void parseDirectory(std::string_view basePath, std::ifstream&& stream) {
       for (;;) {
         auto extension = helpers::read<std::string>(stream);
         if (extension.empty())
@@ -318,7 +318,7 @@ namespace libvpk {
       }
     }
 
-    void parseFile(std::string_view basePath, std::ifstream& stream, const std::string& vpkFilePath) {
+    inline void parseFile(std::string_view basePath, std::ifstream& stream, const std::string& vpkFilePath) {
       int32_t crc          = helpers::read<int32_t>(stream);
       int16_t preloadBytes = helpers::read<int16_t>(stream);
       int16_t archiveIndex = helpers::read<int16_t>(stream);
