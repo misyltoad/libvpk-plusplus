@@ -347,7 +347,12 @@ namespace libvpk {
             if (name.empty())
               break;
 
-            std::string fullPath = path + '/' + name + '.' + extension;
+            std::string fullPath;
+            // Handle files at the root...
+            if (path == " ")
+              fullPath = name + '.' + extension;
+            else
+              fullPath = path + '/' + name + '.' + extension;
 
             parseFile(dirPath, basePath, stream, fullPath);
           }

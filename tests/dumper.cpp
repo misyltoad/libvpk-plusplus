@@ -22,8 +22,9 @@ int main(int argc, char** argv) {
     std::vector<char> fileBuffer;
 
     for (const auto& file : set.files()) {
-      auto path = std::filesystem::path(file.first);
-      std::filesystem::create_directories(path.remove_filename());
+      auto path = std::filesystem::path(file.first).remove_filename();
+      if (!path.empty())
+        std::filesystem::create_directories(path);
 
       auto inStream = libvpk::VPKFileStream(file.second);
       auto outStream = std::ofstream(file.first, std::ios::binary | std::ios::out);
