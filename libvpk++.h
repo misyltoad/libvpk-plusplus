@@ -128,14 +128,29 @@ namespace libvpk {
       return m_archivePath;
     }
 
+    inline int32_t baseOffset() const {
+        return m_baseOffset;
+    }
+
   protected:
 
     VPKArchive(std::string_view basePath, uint16_t archiveIndex)
       : m_directoryPath(helpers::directoryPath(basePath))
-      , m_archivePath(helpers::archivePath(basePath, archiveIndex)) {
+      , m_archivePath(helpers::archivePath(basePath, archiveIndex))
+      , m_baseOffset(0) {
       if (!std::filesystem::exists(m_archivePath))
         throw std::exception("VPK archive doesn't exist");
     }
+
+    // for index 0x7fff
+    VPKArchive(std::string_view dirPath)
+        : m_directoryPath(dirPath)
+        , m_archivePath(dirPath)
+        , m_baseOffset(0) {
+    }
+
+    // Set by the dir archive after we calculate the tree length.
+    int32_t m_baseOffset;
 
     friend class VPKSet;
 
@@ -243,7 +258,7 @@ namespace libvpk {
       , m_preloadLength(desc.preloadLength)
       , m_fileLength   (desc.fileLength) {
       m_preloadStream.seekg(desc.preloadOffset);
-      m_archiveStream.seekg(desc.fileOffset);
+      m_archiveStream.seekg(desc.fileOffset + archive->baseOffset());
     }
 
   private:
@@ -295,7 +310,7 @@ namespace libvpk {
       else
         throw std::exception("Unknown VPK version.");
 
-      parseDirectory(basePath, std::move(directoryStream));
+      parseDirectory(directoryPath, basePath, std::move(directoryStream));
     }
 
     inline meta::VPKHeader header() {
@@ -316,7 +331,7 @@ namespace libvpk {
 
   private:
 
-    inline void parseDirectory(std::string_view basePath, std::ifstream&& stream) {
+    inline void parseDirectory(std::string_view dirPath, std::string_view basePath, std::ifstream&& stream) {
       for (;;) {
         auto extension = helpers::read<std::string>(stream);
         if (extension.empty())
@@ -334,13 +349,16 @@ namespace libvpk {
 
             std::string fullPath = path + '/' + name + '.' + extension;
 
-            parseFile(basePath, stream, fullPath);
+            parseFile(dirPath, basePath, stream, fullPath);
           }
         }
       }
+
+      // Set the base offset for the dir pak's archive.
+      m_dirArchive->m_baseOffset = int32_t(stream.tellg());
     }
 
-    inline void parseFile(std::string_view basePath, std::ifstream& stream, const std::string& vpkFilePath) {
+    inline void parseFile(std::string_view dirPath, std::string_view basePath, std::ifstream& stream, const std::string& vpkFilePath) {
       int32_t crc          = helpers::read<int32_t>(stream);
       int16_t preloadBytes = helpers::read<int16_t>(stream);
       int16_t archiveIndex = helpers::read<int16_t>(stream);
@@ -351,14 +369,25 @@ namespace libvpk {
       // Read the terminator for the file info.
       helpers::read<int16_t>(stream);
 
-      // Resize our archive reference vector if
-      // we need more space.
-      if (archiveIndex >= int16_t(m_archives.size()))
-        m_archives.resize(archiveIndex + 1);
+      VPKArchiveRef archive;
+      if (archiveIndex == 0x7fff) {
+        if (m_dirArchive == nullptr)
+          m_dirArchive = std::shared_ptr<VPKArchive>(new VPKArchive(dirPath));
+        archive = m_dirArchive;
+      }
+      else {
+        // Resize our archive reference vector if
+        // we need more space.
+        if (archiveIndex >= int16_t(m_archives.size()))
+          m_archives.resize(archiveIndex + 1);
 
-      // Check if we need to load this archive
-      if (m_archives[archiveIndex] == nullptr)
-        m_archives[archiveIndex] = std::shared_ptr<VPKArchive>(new VPKArchive(basePath, archiveIndex));
+        // Check if we need to load this archive
+        archive = m_archives[archiveIndex];
+        if (archive == nullptr) {
+          archive = std::shared_ptr<VPKArchive>(new VPKArchive(basePath, archiveIndex));
+          m_archives[archiveIndex] = archive;
+        }
+      }
 
       VPKFile::VPKFileDesc desc;
       desc.preloadOffset = int32_t(stream.tellg());
@@ -371,12 +400,13 @@ namespace libvpk {
       if (desc.preloadLength != 0)
         stream.ignore(desc.preloadLength);
 
-      m_files.emplace(vpkFilePath, VPKFile(m_archives[archiveIndex], desc));
+      m_files.emplace(vpkFilePath, VPKFile(archive, desc));
     }
 
     meta::VPKHeader m_header;
 
     std::vector<std::shared_ptr<VPKArchive>> m_archives;
+    std::shared_ptr<VPKArchive> m_dirArchive;
 
     VPKFileMap m_files;
 
