@@ -19,17 +19,39 @@ namespace libvpk {
   namespace helpers {
 
     static inline std::string_view removeExtension(std::string_view string, std::string_view ending) {
-      const size_t position = string.find(ending);
+      if (ending.length() >= string.length())
+        return string;
 
-      return position != std::string_view::npos
-        ? string.substr(0, position)
-        : string;
+      if (string.substr(string.length() - ending.length()) == ending)
+        return string.substr(0, string.length() - ending.length());
+
+      return string;
+    }
+
+    static inline bool isAsciiDigit(char c) {
+      return c >= '0' && c <= '9';
+    }
+
+    static inline std::string_view removeEndingDigits(std::string_view string) {
+      if (4 >= string.length())
+        return string;
+
+      // Check for _xyz ie. _001
+      size_t length = string.length();
+      if (isAsciiDigit(string[length - 1]) &&
+          isAsciiDigit(string[length - 2]) &&
+          isAsciiDigit(string[length - 3]) &&
+          string[length - 4] == '_')
+        return string.substr(0, length - 4);
+
+      return string;
     }
 
     static inline std::string_view normalizePath(std::string_view path) {
       // Remove .vpk and _dir
       path = helpers::removeExtension(path, ".vpk");
       path = helpers::removeExtension(path, "_dir");
+      path = helpers::removeEndingDigits(path);
 
       return path;
     }
