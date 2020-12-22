@@ -360,7 +360,8 @@ namespace libvpk {
       }
 
       // Set the base offset for the dir pak's archive.
-      m_dirArchive->m_baseOffset = int32_t(stream.tellg());
+      if (m_dirArchive != nullptr)
+        m_dirArchive->m_baseOffset = int32_t(stream.tellg());
     }
 
     inline void parseFile(std::string_view dirPath, std::string_view basePath, std::ifstream& stream, const std::string& vpkFilePath) {
