@@ -18,7 +18,7 @@ namespace libvpk {
 
   namespace helpers {
 
-    static inline std::string_view removeExtension(std::string_view string, std::string_view ending) {
+    inline std::string_view removeExtension(std::string_view string, std::string_view ending) {
       if (ending.length() >= string.length())
         return string;
 
@@ -28,11 +28,11 @@ namespace libvpk {
       return string;
     }
 
-    static inline bool isAsciiDigit(char c) {
+    inline bool isAsciiDigit(char c) {
       return c >= '0' && c <= '9';
     }
 
-    static inline std::string_view removeEndingDigits(std::string_view string) {
+    inline std::string_view removeEndingDigits(std::string_view string) {
       if (4 >= string.length())
         return string;
 
@@ -47,7 +47,7 @@ namespace libvpk {
       return string;
     }
 
-    static inline std::string_view normalizePath(std::string_view path) {
+    inline std::string_view normalizePath(std::string_view path) {
       // Remove .vpk and _dir
       path = helpers::removeExtension(path, ".vpk");
       path = helpers::removeExtension(path, "_dir");
@@ -57,24 +57,24 @@ namespace libvpk {
     }
 
     template <typename T>
-    static inline T read(std::ifstream& stream) {
+    inline T read(std::ifstream& stream) {
       T value;
       stream.read(reinterpret_cast<char*>(&value), sizeof(T));
       return value;
     }
 
     template <>
-    static inline std::string read<std::string>(std::ifstream& stream) {
+    inline std::string read<std::string>(std::ifstream& stream) {
       std::string value;
       std::getline(stream, value, '\0');
       return value;
     }
 
-    static inline std::string directoryPath(std::string_view basePath) {
+    inline std::string directoryPath(std::string_view basePath) {
       return std::string(basePath) + "_dir.vpk";
     }
 
-    static inline std::string archivePath(std::string_view basePath, uint16_t archiveIndex) {
+    inline std::string archivePath(std::string_view basePath, uint16_t archiveIndex) {
       std::stringstream archivePath;
       archivePath << basePath << "_" << std::setw(3) << std::setfill('0') << archiveIndex << ".vpk";
       return archivePath.str();
@@ -139,7 +139,7 @@ namespace libvpk {
       , m_archivePath(helpers::archivePath(basePath, archiveIndex))
       , m_baseOffset(0) {
       if (!std::filesystem::exists(m_archivePath))
-        throw std::exception("VPK archive doesn't exist");
+        throw std::runtime_error("VPK archive doesn't exist");
     }
 
     // for index 0x7fff
@@ -213,8 +213,8 @@ namespace libvpk {
 
   public:
 
-    VPKFileStream(const VPKFile& file)
-      : VPKFileStream(file.m_archive, file.m_desc) { }
+    VPKFileStream(const VPKFile& file, std::ios::openmode mode = std::ios::in | std::ios::binary)
+      : VPKFileStream(file.m_archive, file.m_desc, mode) { }
 
     inline int32_t read(char* dst, int32_t count) {
       int32_t preloadCount = std::min(pos + count, m_preloadLength) - pos;
@@ -252,9 +252,9 @@ namespace libvpk {
 
   protected:
 
-    VPKFileStream(VPKArchiveRef archive, VPKFile::VPKFileDesc desc)
-      : m_preloadStream(archive->directoryPath(), std::ios::binary)
-      , m_archiveStream(archive->archivePath(),   std::ios::binary)
+    VPKFileStream(VPKArchiveRef archive, VPKFile::VPKFileDesc desc, std::ios::openmode mode)
+      : m_preloadStream(std::filesystem::path(archive->directoryPath()), mode)
+      , m_archiveStream(std::filesystem::path(archive->archivePath()),   mode)
       , m_preloadLength(desc.preloadLength)
       , m_fileLength   (desc.fileLength) {
       m_preloadStream.seekg(desc.preloadOffset);
@@ -294,11 +294,11 @@ namespace libvpk {
 
       auto directoryStream = std::ifstream(directoryPath, std::ios::binary);
       if (!directoryStream.is_open() || directoryStream.bad())
-        throw std::exception("Couldn't find/open VPK directory.");
+        throw std::runtime_error("Couldn't find/open VPK directory.");
 
       auto initialHeader = helpers::read<meta::VPKHeader1>(directoryStream);
       if (initialHeader.signature != meta::VPKHeader1::ValidSignature)
-        throw std::exception("Invalid VPK directory signature.");
+        throw std::runtime_error("Invalid VPK directory signature.");
 
       if (initialHeader.version == 1)
         m_header = initialHeader;
@@ -308,7 +308,7 @@ namespace libvpk {
         m_header = helpers::read<meta::VPKHeader2>(directoryStream);
       }
       else
-        throw std::exception("Unknown VPK version.");
+        throw std::runtime_error("Unknown VPK version.");
 
       parseDirectory(directoryPath, basePath, std::move(directoryStream));
     }
